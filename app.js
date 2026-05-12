@@ -306,6 +306,7 @@ async function compressImage(file) {
     const compressed = drawCompressedImage(img, a.maxSize, a.quality);
     if (dataUrlBytes(compressed) <= MAX_IMAGE_BYTES) return compressed;
   }
+}
 
   // ✅ วางบรรทัดนี้ไว้ท้ายสุดของไฟล์ app.js (ต้องอยู่นอกเครื่องหมาย { } ใดๆ)
 async function testTelegramNotification() {
