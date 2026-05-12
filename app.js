@@ -192,6 +192,10 @@ root?.addEventListener("click", async (e) => {
   if (action === "gallery") document.getElementById("gallery-input")?.click();
   if (action === "reload") loadRemote();
   if (action === "save-config") saveConfigFromInputs();
+if (action === "test-telegram") {
+  if (typeof testTelegramNotification === "function") testTelegramNotification();
+  else alert("❌ ฟังก์ชันเทสยังไม่โหลดสำเร็จ กรุณารีเฟรช (Ctrl+Shift+R)");
+}
   if (action === "test-telegram") testTelegramNotification();
   if (action === "save-medicine") { const f = btn.closest("form"); if (f) saveMedicineFromForm(f); }
 });
@@ -303,35 +307,34 @@ async function compressImage(file) {
     if (dataUrlBytes(compressed) <= MAX_IMAGE_BYTES) return compressed;
   }
 
-  async function testTelegramNotification() {
-  const token = state.config.telegramBotToken?.trim();
-  const chatId = state.config.telegramChatId?.trim();
-  
+  // ✅ วางบรรทัดนี้ไว้ท้ายสุดของไฟล์ app.js (ต้องอยู่นอกเครื่องหมาย { } ใดๆ)
+async function testTelegramNotification() {
+  const token = document.querySelector('[data-config="telegramBotToken"]')?.value?.trim();
+  const chatId = document.querySelector('[data-config="telegramChatId"]')?.value?.trim();
+
   if (!token || !chatId) {
-    alert("กรุณากรอก Telegram Bot Token และ Chat ID ก่อนกดเทส");
+    alert("กรุณากรอก Telegram Bot Token และ Chat ID ก่อนกดทดสอบ");
     return;
   }
 
-  setStatus("📤 กำลังส่งข้อความทดสอบไปยัง Telegram...");
+  setStatus("📤 กำลังส่งข้อความทดสอบ...");
   try {
-    const text = `✅ <b>ทดสอบการแจ้งเตือน</b>\n🕒 เวลา: ${new Date().toLocaleTimeString('th-TH')}\n📅 วันที่: ${new Date().toLocaleDateString('th-TH')}\n\nหากเห็นข้อความนี้ แสดงว่าการตั้งค่าถูกต้องแล้ว! 🎉`;
-    const url = `https://api.telegram.org/bot${token}/sendMessage`;
-    
-    const res = await fetch(url, {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" })
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: `✅ <b>ทดสอบระบบแจ้งเตือนยา</b>\n🕒 ${new Date().toLocaleString('th-TH')}\n\nเชื่อมต่อสำเร็จ! 🎉`,
+        parse_mode: "HTML"
+      })
     });
-    
     const data = await res.json();
     if (data.ok) {
       setStatus("✅ ส่งข้อความทดสอบไปยัง Telegram สำเร็จ!");
     } else {
-      throw new Error(data.description || "Telegram API ตอบกลับไม่สำเร็จ");
+      throw new Error(data.description || "Telegram ปฏิเสธคำขอ");
     }
   } catch (err) {
-    setStatus(`❌ ส่ง Telegram ไม่สำเร็จ: ${err.message}`);
+    setStatus(`❌ ส่งไม่สำเร็จ: ${err.message}`);
   }
-}
-  return drawCompressedImage(img, 140, 0.28);
 }
