@@ -9,7 +9,7 @@ const MEAL_OPTIONS = ["ก่อนอาหาร", "หลังอาหา�
 const API_URL_KEY = "medicine_app_api_url";
 const LOCAL_DATA_KEY = "medicine_app_local_data";
 const LOCAL_CONFIG_KEY = "medicine_app_local_config";
-const MAX_IMAGE_BYTES = 65000;
+const MAX_IMAGE_BYTES = 28000;
 
 const defaultConfig = {
   apiUrl: "",
@@ -469,11 +469,11 @@ async function compressImage(file) {
   const dataUrl = await fileToDataUrl(file);
   const image = await loadImage(dataUrl);
   const attempts = [
-    { maxSize: 720, quality: 0.7 },
-    { maxSize: 560, quality: 0.62 },
-    { maxSize: 460, quality: 0.55 },
-    { maxSize: 360, quality: 0.5 },
-    { maxSize: 300, quality: 0.45 },
+    { maxSize: 520, quality: 0.58 },
+    { maxSize: 420, quality: 0.52 },
+    { maxSize: 340, quality: 0.46 },
+    { maxSize: 280, quality: 0.42 },
+    { maxSize: 220, quality: 0.38 },
   ];
 
   let bestDataUrl = "";
