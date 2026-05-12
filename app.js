@@ -534,8 +534,18 @@ function generateReportHTML(medicines, config) {
     /* ✅ Horizontal Cards */
     .medicines-horizontal { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
     .medicine-card.horizontal { flex: 0 1 calc(33.333% - 8px); min-width: 200px; display: flex; flex-direction: column; gap: 8px; padding: 10px; background: #fafafa; border-radius: 8px; border: 1px solid var(--border); text-align: center; }
-    .medicine-card.horizontal .med-img, .medicine-card.horizontal .med-img-placeholder { width: 100%; height: 120px; object-fit: cover; border-radius: 6px; background: #e2e8f0; }
+  	/* ✅ ปรับใหม่: รูปย่อ สั้นลง */
+.medicine-card.horizontal .med-img, 
+.medicine-card.horizontal .med-img-placeholder { 
+  width: 100%; 
+  height: 100px; /* ✅ ลดจาก 120px → 100px */
+  aspect-ratio: 1/1; /* ✅ บังคับเป็นสี่เหลี่ยมจัตุรัส */
+  object-fit: cover; /* ✅ ตัดส่วนเกินออก */
+  border-radius: 6px; 
+  background: #e2e8f0; 
+}  
     .medicine-card.horizontal .med-img-placeholder { display: flex; align-items: center; justify-content: center; font-size: 3rem; color: var(--muted); }
+	
     .medicine-card.horizontal .med-info { text-align: left; }
     .medicine-card.horizontal .med-name { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
     .medicine-card.horizontal .med-dose { color: var(--primary); font-size: 0.85rem; margin-bottom: 2px; }
