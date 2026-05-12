@@ -1,5 +1,5 @@
 // ============================================
-// ✅ app.js - เวอร์ชันแก้ไขหน้าขาว (ลำดับถูกต้อง)
+// ✅ app.js - เวอร์ชันสมบูรณ์ + ปุ่มมีฟีดแบ็ก
 // ============================================
 
 // ─── 1. CONSTANTS & CONFIG ──────────────────
@@ -40,20 +40,16 @@ const state = {
   status: "พร้อมใช้งาน",
 };
 
-// ─── 3. HELPER FUNCTIONS (ต้องอยู่ก่อนถูกเรียก!) ──
+// ─── 3. HELPER FUNCTIONS ────────────────────
 function readJson(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key)) || fallback; }
   catch { return fallback; }
 }
-
 function persistMedicines(m) { localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(m)); }
 function persistConfig(c) { localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(c)); return c; }
-
-function escapeHtml(v = "") {
-  return String(v).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+function escapeHtml(v = "") {  return String(v).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
 function escapeAttribute(v = "") { return escapeHtml(v).replaceAll("`", "&#096;"); }
-
 function icon(name) {
   const paths = {
     plus: "M12 5v14M5 12h14",
@@ -67,17 +63,10 @@ function icon(name) {
   };
   return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[name]}"/></svg>`;
 }
-
 function dataUrlBytes(url) { const b64 = String(url).split(",")[1] || ""; return Math.ceil((b64.length * 3) / 4); }
 function formatBytes(b) { return b < 1024 ? `${b} B` : `${Math.round(b / 1024)} KB`; }
-
-function fileToDataUrl(f) {
-  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); });
-}
-function loadImage(src) {
-  return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
-}
-
+function fileToDataUrl(f) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); }); }
+function loadImage(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; }); }
 function drawCompressedImage(img, maxSize, quality) {
   const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
   const w = Math.max(1, Math.round(img.width * scale)), h = Math.max(1, Math.round(img.height * scale));
@@ -88,7 +77,6 @@ function drawCompressedImage(img, maxSize, quality) {
   ctx.drawImage(img, 0, 0, w, h);
   return canvas.toDataURL("image/jpeg", quality);
 }
-
 function normalizeMedicine(m) {
   const periods = Array.isArray(m.periods) ? m.periods : typeof m.periods === "string" ? m.periods.split(",").map((p) => p.trim()).filter(Boolean) : ["morning"];
   return { ...m, id: m.id || crypto.randomUUID(), name: m.name || "", dose: m.dose || "", periods: periods.length ? periods : ["morning"], meal: m.meal || "ไม่ระบุ", note: m.note || "", imageUrl: m.imageUrl || "", imageFileId: m.imageFileId || "" };
@@ -108,29 +96,23 @@ async function apiRequest(url, body) {
   if (!payload.ok) throw new Error(payload.error || "API error");
   return payload;
 }
-
-function setStatus(s) {
-  state.status = s;
+function setStatus(s) {  state.status = s;
   setTimeout(() => { const el = document.getElementById("sync-status"); if (el) { el.textContent = escapeHtml(s); el.style.opacity = "0.7"; setTimeout(() => el.style.opacity = "1", 150); } }, 0);
 }
-
 function renderMedicineImage(src, name, large = false) {
   const cls = large ? "medicine-image large" : "medicine-image";
   if (src) return `<img class="${cls}" src="${escapeAttribute(src)}" alt="รูป ${escapeAttribute(name)}" />`;
   return `<div class="${cls} placeholder" aria-label="ยังไม่มีรูป">${icon("pill")}</div>`;
 }
-
 function renderSchedule() {
   return `<div class="schedule-list">${PERIODS.map((period) => {
     const items = state.medicines.filter((m) => m.periods?.includes(period.id));
     return `<section class="period-section"><div class="period-heading"><h2>${period.label}</h2><time>${state.config.times?.[period.id] || period.defaultTime}</time></div>${items.length ? items.map((m) => renderMedicineRow(period.id, m)).join("") : `<div class="empty-row">ยังไม่มียาสำหรับช่วงนี้</div>`}</section>`;
   }).join("")}</div>`;
 }
-
 function renderMedicineRow(periodId, medicine) {
   return `<article class="medicine-row">${renderMedicineImage(medicine.imageUrl, medicine.name)}<div class="medicine-detail"><h3>${escapeHtml(medicine.name)}</h3><p><strong>${escapeHtml(medicine.dose)}</strong><span>${escapeHtml(medicine.meal || "ไม่ระบุ")}</span></p>${medicine.note ? `<small>${escapeHtml(medicine.note)}</small>` : ""}</div><div class="row-actions"><button type="button" aria-label="แก้ไข" data-action="edit-medicine" data-id="${medicine.id}">${icon("edit")}</button><button type="button" aria-label="ลบ" data-action="delete-medicine" data-id="${medicine.id}">${icon("trash")}</button></div></article>`;
 }
-
 function renderConfig() {
   return `<section class="config-panel">
     <h2>ตั้งค่า</h2>
@@ -145,12 +127,10 @@ function renderConfig() {
     </div>
   </section>`;
 }
-
 function renderMedicineForm() {
   const m = state.editingMedicine || { name: "", dose: "", periods: ["morning"], meal: "หลังอาหาร", note: "", imageUrl: "" };
   return `<div class="sheet-backdrop" role="dialog" aria-modal="true"><form class="medicine-sheet" id="medicine-form"><div class="sheet-handle"></div><div class="sheet-title"><h2>${state.editingMedicine ? "แก้ไขยา" : "เพิ่มยา"}</h2><button type="button" class="icon-button" data-action="close-form">${icon("close")}</button></div><input type="hidden" name="id" value="${escapeAttribute(m.id || "")}" /><input type="hidden" name="imageUrl" value="${escapeAttribute(m.imageUrl || "")}" /><input type="hidden" name="imageFileId" value="${escapeAttribute(m.imageFileId || "")}" /><label class="field"><span>ชื่อยา</span><input name="name" value="${escapeAttribute(m.name)}" placeholder="เช่น ยาลดความดัน" /></label><label class="field"><span>จำนวนที่กิน</span><input name="dose" value="${escapeAttribute(m.dose)}" placeholder="เช่น 1 เม็ด" /></label><fieldset class="choice-group"><legend>ช่วงเวลา</legend><div class="choice-grid">${PERIODS.map((p) => `<label class="choice ${m.periods?.includes(p.id) ? "checked" : ""}"><input type="checkbox" name="periods" value="${p.id}" ${m.periods?.includes(p.id) ? "checked" : ""} />${p.label}</label>`).join("")}</div></fieldset><fieldset class="choice-group"><legend>อาหาร</legend><div class="choice-grid three">${MEAL_OPTIONS.map((meal) => `<label class="choice ${m.meal === meal ? "checked" : ""}"><input type="radio" name="meal" value="${meal}" ${m.meal === meal ? "checked" : ""} />${meal}</label>`).join("")}</div></fieldset><section class="photo-panel"><div><span>รูปยา</span><p>ถ่ายใหม่หรือเลือกรูปจากเครื่องได้ รูปจะถูกย่อให้อัตโนมัติ</p></div><div id="photo-preview">${renderMedicineImage(m.imageUrl, m.name || "ยา", true)}</div><div class="photo-actions"><button type="button" class="secondary-button" data-action="camera">${icon("camera")}ถ่ายรูป</button><button type="button" class="secondary-button" data-action="gallery">${icon("image")}เลือกรูป</button></div><input id="camera-input" class="hidden-input" type="file" accept="image/*" capture="environment" /><input id="gallery-input" class="hidden-input" type="file" accept="image/*" /><small class="image-status" id="image-status"></small></section><label class="field"><span>หมายเหตุ</span><textarea name="note" placeholder="เช่น ดื่มน้ำตาม">${escapeHtml(m.note || "")}</textarea></label><div class="sheet-actions"><button type="button" class="ghost-button" data-action="close-form">ยกเลิก</button><button type="button" class="primary-button" data-action="save-medicine">บันทึก</button></div></form></div>`;
 }
-
 function buildAppHTML() {
   return `<main class="app-shell"><header class="topbar"><div><p class="eyeline">วันนี้</p><h1>ตารางยา</h1></div><button class="icon-button" type="button" aria-label="ตั้งค่า" data-action="open-config">${icon("settings")}</button></header><section class="summary-band"><div><span>ช่วงตอนนี้</span><strong>${getCurrentPeriodLabel()}</strong></div><button class="primary-button" type="button" data-action="add-medicine">${icon("plus")}เพิ่มยา</button></section><nav class="tabs" aria-label="เมนูหลัก"><button type="button" class="${state.activeTab === "today" ? "active" : ""}" data-tab="today">รายการยา</button><button type="button" class="${state.activeTab === "config" ? "active" : ""}" data-tab="config">ตั้งค่า</button></nav><p class="sync-status" id="sync-status">${escapeHtml(state.status)}</p><p class="app-version">เวอร์ชัน ${APP_VERSION}</p>${state.activeTab === "today" ? renderSchedule() : renderConfig()}</main>${state.isFormOpen ? renderMedicineForm() : ""}`;
 }
@@ -158,7 +138,6 @@ function buildAppHTML() {
 // ─── 5. RENDER & DEBOUNCE ───────────────────
 let renderTimer = null;
 const root = document.getElementById("root");
-
 function render() {
   if (!root) return;
   if (renderTimer) cancelAnimationFrame(renderTimer);
@@ -166,8 +145,7 @@ function render() {
 }
 
 // ─── 6. INIT ────────────────────────────────
-function init() {
-  if (!root) { console.error("❌ ไม่พบ #root"); return; }
+function init() {  if (!root) { console.error("❌ ไม่พบ #root"); return; }
   const savedConfig = readJson(LOCAL_CONFIG_KEY, defaultConfig);
   const savedApiUrl = localStorage.getItem(API_URL_KEY) || "";
   state.config = mergeConfig(defaultConfig, { ...savedConfig, apiUrl: savedConfig.apiUrl || savedApiUrl || DEFAULT_API_URL });
@@ -175,13 +153,22 @@ function init() {
   render();
   if (state.config.apiUrl) setTimeout(() => loadRemote(state.config.apiUrl), 100);
 }
-
 document.addEventListener("DOMContentLoaded", init);
 
 // ─── 7. EVENT LISTENERS ─────────────────────
 root?.addEventListener("click", async (e) => {
   const btn = e.target.closest("button"); if (!btn) return;
   const action = btn.dataset.action, tab = btn.dataset.tab;
+  
+  // ✅ ฟีดแบ็กปุ่ม: แสดงว่า "กำลัง..." ชั่วคราว
+  if (["reload", "test-telegram", "save-config"].includes(action)) {
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.dataset.original = originalText;
+    btn.innerHTML = `⏳ กำลัง...`;
+    setTimeout(() => { btn.disabled = false; btn.innerHTML = btn.dataset.original || originalText; }, 2000);
+  }
+  
   if (tab) { state.activeTab = tab; render(); return; }
   if (action === "open-config") { state.activeTab = "config"; render(); }
   if (action === "add-medicine") { state.editingMedicine = null; state.isFormOpen = true; render(); }
@@ -192,11 +179,10 @@ root?.addEventListener("click", async (e) => {
   if (action === "gallery") document.getElementById("gallery-input")?.click();
   if (action === "reload") loadRemote();
   if (action === "save-config") saveConfigFromInputs();
-if (action === "test-telegram") {
-  if (typeof testTelegramNotification === "function") testTelegramNotification();
-  else alert("❌ ฟังก์ชันเทสยังไม่โหลดสำเร็จ กรุณารีเฟรช (Ctrl+Shift+R)");
-}
-  if (action === "test-telegram") testTelegramNotification();
+  if (action === "test-telegram") {
+    if (typeof testTelegramNotification === "function") testTelegramNotification();
+    else alert("❌ ฟังก์ชันเทสยังไม่โหลดสำเร็จ กรุณารีเฟรช (Ctrl+Shift+R)");
+  }
   if (action === "save-medicine") { const f = btn.closest("form"); if (f) saveMedicineFromForm(f); }
 });
 
@@ -208,7 +194,6 @@ root?.addEventListener("change", (e) => {
   }
   if (input.id === "camera-input" || input.id === "gallery-input") handleImageFile(input.files?.[0]);
 });
-
 root?.addEventListener("submit", (e) => {
   if (e.target?.id === "medicine-form") { e.preventDefault(); saveMedicineFromForm(e.target); }
 }, true);
@@ -258,8 +243,7 @@ async function saveMedicineFromForm(form) {
         await loadRemote(state.config.apiUrl, `ซิงก์แล้ว พบยา ${state.medicines.length} รายการ`);
       } catch (err) { setStatus(`บันทึกในเครื่องแล้ว แต่ซิงก์ออนไลน์ไม่ได้: ${err.message}`); }
     }, 50);
-  } else setStatus(`บันทึก "${medicine.name}" ในเครื่องแล้ว`);
-}
+  } else setStatus(`บันทึก "${medicine.name}" ในเครื่องแล้ว`);}
 
 async function deleteMedicine(id) {
   const target = state.medicines.find((x) => x.id === id);
@@ -306,9 +290,9 @@ async function compressImage(file) {
     const compressed = drawCompressedImage(img, a.maxSize, a.quality);
     if (dataUrlBytes(compressed) <= MAX_IMAGE_BYTES) return compressed;
   }
+  return drawCompressedImage(img, 140, 0.28);
 }
-
-  // ✅ วางบรรทัดนี้ไว้ท้ายสุดของไฟล์ app.js (ต้องอยู่นอกเครื่องหมาย { } ใดๆ)
+// ─── 9. TELEGRAM TEST FUNCTION (ท้ายสุดของไฟล์) ──
 async function testTelegramNotification() {
   const token = document.querySelector('[data-config="telegramBotToken"]')?.value?.trim();
   const chatId = document.querySelector('[data-config="telegramChatId"]')?.value?.trim();
