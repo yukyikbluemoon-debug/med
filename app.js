@@ -67,8 +67,12 @@ function init() {
   }
 }
 
-function render() {
-  root.innerHTML = `
+// ✅ เพิ่ม debounce helper ด้านบนสุด (หลัง const state)
+let renderTimer = null;
+function debouncedRender() {
+  if (renderTimer) cancelAnimationFrame(renderTimer);
+  renderTimer = requestAnimationFrame(() => {
+    root.innerHTML = `
     <main class="app-shell">
       <header class="topbar">
         <div>
@@ -91,13 +95,21 @@ function render() {
         <button type="button" class="${state.activeTab === "config" ? "active" : ""}" data-tab="config">ตั้งค่า</button>
       </nav>
 
-      <p class="sync-status">${escapeHtml(state.status)}</p>
+      <p class="sync-status" id="sync-status">${escapeHtml(state.status)}</p>
       <p class="app-version">เวอร์ชัน ${APP_VERSION}</p>
 
       ${state.activeTab === "today" ? renderSchedule() : renderConfig()}
     </main>
     ${state.isFormOpen ? renderMedicineForm() : ""}
   `;
+    // รีเฟรเชน event delegation ให้ปุ่มใหม่ทำงาน
+    setupEventDelegation();
+  });
+}
+
+// ✅ แทนที่ฟังก์ชัน render() เดิมด้วย:
+function render() {
+  debouncedRender();
 }
 
 function renderSchedule() {
@@ -398,7 +410,30 @@ async function saveMedicineFromForm(form) {
       if (medicine.imageUrl?.startsWith("data:image") && dataUrlBytes(medicine.imageUrl) > MAX_IMAGE_BYTES) {
         throw new Error(`รูปยังใหญ่เกินไป (${formatBytes(dataUrlBytes(medicine.imageUrl))})`);
       }
+      // ✅ เปลี่ยนจาก:
+//   const payload = await apiRequest(state.config.apiUrl, { ... });
+
+// ✅ เป็นแบบนี้ (ไม่บล็อก UI):
+if (state.config.apiUrl) {
+  setStatus(`กำลังบันทึก "${medicine.name}" ออนไลน์...`);
+  
+  // ปล่อยให้การเรนเดอร์เสร็จก่อน แล้วค่อยเรียก API
+  setTimeout(async () => {
+    try {
+      if (medicine.imageUrl?.startsWith("data:image") && dataUrlBytes(medicine.imageUrl) > MAX_IMAGE_BYTES) {
+        throw new Error(`รูปยังใหญ่เกินไป (${formatBytes(dataUrlBytes(medicine.imageUrl))})`);
+      }
       const payload = await apiRequest(state.config.apiUrl, { action: "saveMedicine", medicine });
+      const saved = payload.medicine || medicine;
+      state.medicines = upsertMedicine(state.medicines, normalizeMedicine(saved));
+      persistMedicines(state.medicines);
+      setStatus(`บันทึก "${saved.name || medicine.name}" แล้ว`);
+      await loadRemote(state.config.apiUrl, `ซิงก์แล้ว พบยา ${state.medicines.length} รายการ`);
+    } catch (error) {
+      setStatus(`บันทึกไว้ในเครื่องแล้ว แต่ยังซิงก์ออนไลน์ไม่ได้: ${error.message}`);
+    }
+  }, 50); // ปล่อย UI อัพเดทก่อน 50ms
+}
       const saved = payload.medicine || medicine;
       state.medicines = upsertMedicine(state.medicines, normalizeMedicine(saved));
       persistMedicines(state.medicines);
@@ -463,18 +498,26 @@ async function saveConfigFromInputs() {
   }
 }
 
-async function handleImageFile(file) {
-  if (!file) return;
-  const imageStatus = document.getElementById("image-status");
-  imageStatus.textContent = "กำลังย่อรูป...";
-  try {
-    const imageUrl = await compressImage(file);
-    document.querySelector("input[name='imageUrl']").value = imageUrl;
-    document.getElementById("photo-preview").innerHTML = renderMedicineImage(imageUrl, "ยา", true);
-    imageStatus.textContent = `รูปพร้อมบันทึกแล้ว (${formatBytes(dataUrlBytes(imageUrl))})`;
-  } catch (error) {
-    imageStatus.textContent = "ย่อรูปไม่ได้ ลองเลือกรูปใหม่";
+async function compressImage(file, options = {}) {
+  const { maxSize = 280, quality = 0.45 } = options; // ลดจาก 360/0.48
+  const dataUrl = await fileToDataUrl(file);
+  const image = await loadImage(dataUrl);
+  
+  // ลองแค่ 3 รอบพอ (จากเดิม 6 รอบ)
+  const attempts = [
+    { maxSize, quality },
+    { maxSize: 220, quality: 0.38 },
+    { maxSize: 180, quality: 0.32 },
+  ];
+
+  for (const attempt of attempts) {
+    const compressed = drawCompressedImage(image, attempt.maxSize, attempt.quality);
+    if (dataUrlBytes(compressed) <= MAX_IMAGE_BYTES) {
+      return compressed;
+    }
   }
+  // ถ้ายังใหญ่เกิน ให้คืนค่าที่เล็กสุดที่ทำได้
+  return drawCompressedImage(image, 140, 0.28);
 }
 
 async function compressImage(file) {
@@ -593,7 +636,13 @@ function getCurrentPeriodLabel() {
 
 function setStatus(status) {
   state.status = status;
-  render();
+  const statusEl = document.getElementById('sync-status');
+  if (statusEl) {
+    statusEl.textContent = escapeHtml(status);
+    // เอฟเฟกต์กระพริบเล็กๆ ให้รู้ว่าอัพเดท
+    statusEl.style.opacity = '0.7';
+    setTimeout(() => statusEl.style.opacity = '1', 150);
+  }
 }
 
 function readJson(key, fallback) {
