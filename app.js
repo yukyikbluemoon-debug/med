@@ -9,6 +9,7 @@ const MEAL_OPTIONS = ["ก่อนอาหาร", "หลังอาหา�
 const API_URL_KEY = "medicine_app_api_url";
 const LOCAL_DATA_KEY = "medicine_app_local_data";
 const LOCAL_CONFIG_KEY = "medicine_app_local_config";
+const MAX_IMAGE_BYTES = 65000;
 
 const defaultConfig = {
   apiUrl: "",
@@ -458,23 +459,57 @@ async function handleImageFile(file) {
     const imageUrl = await compressImage(file);
     document.querySelector("input[name='imageUrl']").value = imageUrl;
     document.getElementById("photo-preview").innerHTML = renderMedicineImage(imageUrl, "ยา", true);
-    imageStatus.textContent = "รูปพร้อมบันทึกแล้ว";
+    imageStatus.textContent = `รูปพร้อมบันทึกแล้ว (${formatBytes(dataUrlBytes(imageUrl))})`;
   } catch (error) {
     imageStatus.textContent = "ย่อรูปไม่ได้ ลองเลือกรูปใหม่";
   }
 }
 
-async function compressImage(file, maxSize = 900, quality = 0.78) {
+async function compressImage(file) {
   const dataUrl = await fileToDataUrl(file);
   const image = await loadImage(dataUrl);
+  const attempts = [
+    { maxSize: 720, quality: 0.7 },
+    { maxSize: 560, quality: 0.62 },
+    { maxSize: 460, quality: 0.55 },
+    { maxSize: 360, quality: 0.5 },
+    { maxSize: 300, quality: 0.45 },
+  ];
+
+  let bestDataUrl = "";
+  for (const attempt of attempts) {
+    const compressed = drawCompressedImage(image, attempt.maxSize, attempt.quality);
+    bestDataUrl = compressed;
+    if (dataUrlBytes(compressed) <= MAX_IMAGE_BYTES) {
+      return compressed;
+    }
+  }
+
+  return bestDataUrl;
+}
+
+function drawCompressedImage(image, maxSize, quality) {
   const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
-  const width = Math.round(image.width * scale);
-  const height = Math.round(image.height * scale);
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
-  canvas.getContext("2d").drawImage(image, 0, 0, width, height);
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, width, height);
+  context.drawImage(image, 0, 0, width, height);
   return canvas.toDataURL("image/jpeg", quality);
+}
+
+function dataUrlBytes(dataUrl) {
+  const base64 = String(dataUrl).split(",")[1] || "";
+  return Math.ceil((base64.length * 3) / 4);
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  return `${Math.round(bytes / 1024)} KB`;
 }
 
 function fileToDataUrl(file) {
