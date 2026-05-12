@@ -9,7 +9,8 @@ const MEAL_OPTIONS = ["ก่อนอาหาร", "หลังอาหา�
 const API_URL_KEY = "medicine_app_api_url";
 const LOCAL_DATA_KEY = "medicine_app_local_data";
 const LOCAL_CONFIG_KEY = "medicine_app_local_config";
-const MAX_IMAGE_BYTES = 28000;
+const APP_VERSION = "2026.05.12.3";
+const MAX_IMAGE_BYTES = 9500;
 
 const defaultConfig = {
   apiUrl: "",
@@ -90,6 +91,7 @@ function render() {
       </nav>
 
       <p class="sync-status">${escapeHtml(state.status)}</p>
+      <p class="app-version">เวอร์ชัน ${APP_VERSION}</p>
 
       ${state.activeTab === "today" ? renderSchedule() : renderConfig()}
     </main>
@@ -387,6 +389,9 @@ async function saveMedicineFromForm(form) {
   if (state.config.apiUrl) {
     setStatus("กำลังบันทึกออนไลน์...");
     try {
+      if (medicine.imageUrl?.startsWith("data:image") && dataUrlBytes(medicine.imageUrl) > MAX_IMAGE_BYTES) {
+        throw new Error(`รูปยังใหญ่เกินไป (${formatBytes(dataUrlBytes(medicine.imageUrl))})`);
+      }
       const payload = await apiRequest(state.config.apiUrl, { action: "saveMedicine", medicine });
       const saved = payload.medicine || medicine;
       state.medicines = state.medicines.map((item) => (item.id === saved.id ? saved : item));
@@ -469,11 +474,12 @@ async function compressImage(file) {
   const dataUrl = await fileToDataUrl(file);
   const image = await loadImage(dataUrl);
   const attempts = [
-    { maxSize: 520, quality: 0.58 },
-    { maxSize: 420, quality: 0.52 },
-    { maxSize: 340, quality: 0.46 },
+    { maxSize: 360, quality: 0.48 },
     { maxSize: 280, quality: 0.42 },
-    { maxSize: 220, quality: 0.38 },
+    { maxSize: 220, quality: 0.36 },
+    { maxSize: 180, quality: 0.32 },
+    { maxSize: 140, quality: 0.28 },
+    { maxSize: 110, quality: 0.24 },
   ];
 
   let bestDataUrl = "";
@@ -536,7 +542,13 @@ async function apiRequest(url, body) {
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify(body),
   });
-  const payload = await response.json();
+  const text = await response.text();
+  let payload;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    throw new Error(text.slice(0, 160) || `HTTP ${response.status}`);
+  }
   if (!payload.ok) throw new Error(payload.error || "API error");
   return payload;
 }
