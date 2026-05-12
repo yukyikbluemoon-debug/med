@@ -290,5 +290,36 @@ async function compressImage(file) {
     const compressed = drawCompressedImage(img, a.maxSize, a.quality);
     if (dataUrlBytes(compressed) <= MAX_IMAGE_BYTES) return compressed;
   }
+
+  async function testTelegramNotification() {
+  const token = state.config.telegramBotToken?.trim();
+  const chatId = state.config.telegramChatId?.trim();
+  
+  if (!token || !chatId) {
+    alert("กรุณากรอก Telegram Bot Token และ Chat ID ก่อนกดเทส");
+    return;
+  }
+
+  setStatus("📤 กำลังส่งข้อความทดสอบไปยัง Telegram...");
+  try {
+    const text = `✅ <b>ทดสอบการแจ้งเตือน</b>\n🕒 เวลา: ${new Date().toLocaleTimeString('th-TH')}\n📅 วันที่: ${new Date().toLocaleDateString('th-TH')}\n\nหากเห็นข้อความนี้ แสดงว่าการตั้งค่าถูกต้องแล้ว! 🎉`;
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+    
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" })
+    });
+    
+    const data = await res.json();
+    if (data.ok) {
+      setStatus("✅ ส่งข้อความทดสอบไปยัง Telegram สำเร็จ!");
+    } else {
+      throw new Error(data.description || "Telegram API ตอบกลับไม่สำเร็จ");
+    }
+  } catch (err) {
+    setStatus(`❌ ส่ง Telegram ไม่สำเร็จ: ${err.message}`);
+  }
+}
   return drawCompressedImage(img, 140, 0.28);
 }
