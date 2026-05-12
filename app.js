@@ -15,7 +15,7 @@ const LOCAL_DATA_KEY = "medicine_app_local_data";
 const LOCAL_CONFIG_KEY = "medicine_app_local_config";
 const DEFAULT_API_URL = "https://script.google.com/macros/s/AKfycbzX4eD8anUFjbJx9lWVcLdr0hroDxTHEZhViCMeUem3Ag8tjzpKHyGybHapfYysQiq0/exec";
 const APP_VERSION = "2026.05.12.6";
-const MAX_IMAGE_BYTES = 9500;
+const MAX_IMAGE_BYTES = 300000;
 
 const defaultConfig = {
   apiUrl: DEFAULT_API_URL,
@@ -45,7 +45,16 @@ function readJson(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key)) || fallback; }
   catch { return fallback; }
 }
-function persistMedicines(m) { localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(m)); }
+function persistMedicines(medicines) {
+  try {
+    localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(medicines));
+  } catch (e) {
+    if (e.name === "QuotaExceededError" || e.code === 22) {
+      console.warn("⚠️ localStorage เต็ม!");
+      alert("⚠️ พื้นที่เก็บข้อมูลในเครื่องเต็มแล้ว กรุณาลบยาเก่าออกบ้าง");
+    }
+  }
+}
 function persistConfig(c) { localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(c)); return c; }
 function escapeHtml(v = "") {  return String(v).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
@@ -79,7 +88,27 @@ function drawCompressedImage(img, maxSize, quality) {
 }
 function normalizeMedicine(m) {
   const periods = Array.isArray(m.periods) ? m.periods : typeof m.periods === "string" ? m.periods.split(",").map((p) => p.trim()).filter(Boolean) : ["morning"];
-  return { ...m, id: m.id || crypto.randomUUID(), name: m.name || "", dose: m.dose || "", periods: periods.length ? periods : ["morning"], meal: m.meal || "ไม่ระบุ", note: m.note || "", imageUrl: m.imageUrl || "", imageFileId: m.imageFileId || "" };
+  
+  // ✅ แปลงลิงก์ Drive เก่า → ลิงก์ใหม่ที่แสดงใน <img> ได้
+  let imageUrl = m.imageUrl || "";
+  if (imageUrl.includes("drive.google.com") || imageUrl.includes("usercontent.google.com")) {
+    const fileIdMatch = imageUrl.match(/[-\w]{25,}/);
+    if (fileIdMatch) {
+      imageUrl = `https://lh3.googleusercontent.com/d/${fileIdMatch[0]}=w800`;
+    }
+  }
+  
+  return {
+    ...m,
+    id: m.id || crypto.randomUUID(),
+    name: m.name || "",
+    dose: m.dose || "",
+    periods: periods.length ? periods : ["morning"],
+    meal: m.meal || "ไม่ระบุ",
+    note: m.note || "",
+    imageUrl: imageUrl, // ✅ ใช้ลิงก์ที่แปลงแล้ว
+    imageFileId: m.imageFileId || "",
+  };
 }
 function normalizeMedicines(arr) { return arr.map(normalizeMedicine).filter((m) => m.id && m.name); }
 function upsertMedicine(list, med) { const n = normalizeMedicine(med); return list.some((x) => x.id === n.id) ? list.map((x) => x.id === n.id ? n : x) : [n, ...list]; }
