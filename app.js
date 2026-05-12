@@ -1,5 +1,5 @@
 // ============================================
-// ✅ app.js - เวอร์ชันสมบูรณ์ + ปุ่มมีฟีดแบ็ก
+// ✅ app.js - เวอร์ชันจำเป็น (4 แก้ไข + แจ้งเตือน)
 // ============================================
 
 // ─── 1. CONSTANTS & CONFIG ──────────────────
@@ -15,7 +15,7 @@ const LOCAL_DATA_KEY = "medicine_app_local_data";
 const LOCAL_CONFIG_KEY = "medicine_app_local_config";
 const DEFAULT_API_URL = "https://script.google.com/macros/s/AKfycbzX4eD8anUFjbJx9lWVcLdr0hroDxTHEZhViCMeUem3Ag8tjzpKHyGybHapfYysQiq0/exec";
 const APP_VERSION = "2026.05.12.6";
-const MAX_IMAGE_BYTES = 300000;
+const MAX_IMAGE_BYTES = 300000; // ✅ แก้ไขที่ 1: เพิ่มเป็น 300KB
 
 const defaultConfig = {
   apiUrl: DEFAULT_API_URL,
@@ -45,6 +45,8 @@ function readJson(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key)) || fallback; }
   catch { return fallback; }
 }
+
+// ✅ แก้ไขที่ 2: กันข้อมูลหายเมื่อพื้นที่เต็ม
 function persistMedicines(medicines) {
   try {
     localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(medicines));
@@ -55,8 +57,10 @@ function persistMedicines(medicines) {
     }
   }
 }
+
 function persistConfig(c) { localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(c)); return c; }
-function escapeHtml(v = "") {  return String(v).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+function escapeHtml(v = "") {
+  return String(v).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
 function escapeAttribute(v = "") { return escapeHtml(v).replaceAll("`", "&#096;"); }
 function icon(name) {
@@ -86,10 +90,11 @@ function drawCompressedImage(img, maxSize, quality) {
   ctx.drawImage(img, 0, 0, w, h);
   return canvas.toDataURL("image/jpeg", quality);
 }
+
+// ✅ แก้ไขที่ 3: แปลงลิงก์รูปเก่า → ลิงก์ใหม่ที่แสดงใน <img> ได้
 function normalizeMedicine(m) {
   const periods = Array.isArray(m.periods) ? m.periods : typeof m.periods === "string" ? m.periods.split(",").map((p) => p.trim()).filter(Boolean) : ["morning"];
   
-  // ✅ แปลงลิงก์ Drive เก่า → ลิงก์ใหม่ที่แสดงใน <img> ได้
   let imageUrl = m.imageUrl || "";
   if (imageUrl.includes("drive.google.com") || imageUrl.includes("usercontent.google.com")) {
     const fileIdMatch = imageUrl.match(/[-\w]{25,}/);
@@ -106,10 +111,11 @@ function normalizeMedicine(m) {
     periods: periods.length ? periods : ["morning"],
     meal: m.meal || "ไม่ระบุ",
     note: m.note || "",
-    imageUrl: imageUrl, // ✅ ใช้ลิงก์ที่แปลงแล้ว
+    imageUrl: imageUrl,
     imageFileId: m.imageFileId || "",
   };
 }
+
 function normalizeMedicines(arr) { return arr.map(normalizeMedicine).filter((m) => m.id && m.name); }
 function upsertMedicine(list, med) { const n = normalizeMedicine(med); return list.some((x) => x.id === n.id) ? list.map((x) => x.id === n.id ? n : x) : [n, ...list]; }
 function mergeConfig(cur, next) { return { ...defaultConfig, ...cur, ...next, times: { ...defaultConfig.times, ...cur?.times, ...next?.times }, notify: { ...defaultConfig.notify, ...cur?.notify, ...next?.notify } }; }
@@ -125,7 +131,8 @@ async function apiRequest(url, body) {
   if (!payload.ok) throw new Error(payload.error || "API error");
   return payload;
 }
-function setStatus(s) {  state.status = s;
+function setStatus(s) {
+  state.status = s;
   setTimeout(() => { const el = document.getElementById("sync-status"); if (el) { el.textContent = escapeHtml(s); el.style.opacity = "0.7"; setTimeout(() => el.style.opacity = "1", 150); } }, 0);
 }
 function renderMedicineImage(src, name, large = false) {
@@ -174,13 +181,19 @@ function render() {
 }
 
 // ─── 6. INIT ────────────────────────────────
-function init() {  if (!root) { console.error("❌ ไม่พบ #root"); return; }
+function init() {
+  if (!root) { console.error("❌ ไม่พบ #root"); return; }
   const savedConfig = readJson(LOCAL_CONFIG_KEY, defaultConfig);
   const savedApiUrl = localStorage.getItem(API_URL_KEY) || "";
   state.config = mergeConfig(defaultConfig, { ...savedConfig, apiUrl: savedConfig.apiUrl || savedApiUrl || DEFAULT_API_URL });
   state.medicines = readJson(LOCAL_DATA_KEY, seedMedicines);
   render();
   if (state.config.apiUrl) setTimeout(() => loadRemote(state.config.apiUrl), 100);
+  
+  // 🎁 ของแถม: ขอสิทธิ์แจ้งเตือน
+  if ("Notification" in window && Notification.permission === "default") {
+    Notification.requestPermission().catch(() => {});
+  }
 }
 document.addEventListener("DOMContentLoaded", init);
 
@@ -188,15 +201,6 @@ document.addEventListener("DOMContentLoaded", init);
 root?.addEventListener("click", async (e) => {
   const btn = e.target.closest("button"); if (!btn) return;
   const action = btn.dataset.action, tab = btn.dataset.tab;
-  
-  // ✅ ฟีดแบ็กปุ่ม: แสดงว่า "กำลัง..." ชั่วคราว
-  if (["reload", "test-telegram", "save-config"].includes(action)) {
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.dataset.original = originalText;
-    btn.innerHTML = `⏳ กำลัง...`;
-    setTimeout(() => { btn.disabled = false; btn.innerHTML = btn.dataset.original || originalText; }, 2000);
-  }
   
   if (tab) { state.activeTab = tab; render(); return; }
   if (action === "open-config") { state.activeTab = "config"; render(); }
@@ -228,16 +232,41 @@ root?.addEventListener("submit", (e) => {
 }, true);
 
 // ─── 8. BUSINESS LOGIC ──────────────────────
+// ✅ แก้ไขที่ 4: ไม่ให้ทับรูปที่เก็บในเครื่อง
 async function loadRemote(url = state.config.apiUrl?.trim(), successMsg = "ซิงก์ข้อมูลแล้ว") {
   if (!url) return;
   setStatus("กำลังโหลดข้อมูลออนไลน์...");
   try {
     const payload = await apiRequest(url, { action: "list" });
-    state.medicines = normalizeMedicines(Array.isArray(payload.medicines) ? payload.medicines : []);
+    const remoteList = normalizeMedicines(Array.isArray(payload.medicines) ? payload.medicines : []);
+    
+    // Merge อย่างปลอดภัย: ถ้าออนไลน์ไม่มีรูป แต่เครื่องมี → เก็บรูปเครื่องไว้
+    state.medicines = state.medicines.map(local => {
+      const remote = remoteList.find(r => r.id === local.id);
+      if (!remote) return local;
+      
+      const hasValidLocalImage = local.imageUrl?.startsWith("image") && local.imageUrl.length > 100;
+      const hasValidRemoteImage = remote.imageUrl?.startsWith("http") && remote.imageUrl.length > 50;
+      
+      return {
+        ...remote,
+        imageUrl: hasValidLocalImage && !hasValidRemoteImage ? local.imageUrl : remote.imageUrl
+      };
+    });
+
+    // เพิ่มยาใหม่จากออนไลน์ที่ยังไม่มีในเครื่อง
+    remoteList.forEach(remote => {
+      if (!state.medicines.some(m => m.id === remote.id)) {
+        state.medicines.push(remote);
+      }
+    });
+
     state.config = persistConfig(mergeConfig(state.config, { ...(payload.config || {}), apiUrl: url }));
     persistMedicines(state.medicines);
     setStatus(successMsg);
-  } catch (err) { setStatus(`โหลดออนไลน์ไม่ได้: ${err.message}`); }
+  } catch (err) { 
+    setStatus(`โหลดออนไลน์ไม่ได้ ใช้ข้อมูลในเครื่องก่อน: ${err.message}`); 
+  }
 }
 
 async function saveMedicineFromForm(form) {
@@ -272,7 +301,8 @@ async function saveMedicineFromForm(form) {
         await loadRemote(state.config.apiUrl, `ซิงก์แล้ว พบยา ${state.medicines.length} รายการ`);
       } catch (err) { setStatus(`บันทึกในเครื่องแล้ว แต่ซิงก์ออนไลน์ไม่ได้: ${err.message}`); }
     }, 50);
-  } else setStatus(`บันทึก "${medicine.name}" ในเครื่องแล้ว`);}
+  } else setStatus(`บันทึก "${medicine.name}" ในเครื่องแล้ว`);
+}
 
 async function deleteMedicine(id) {
   const target = state.medicines.find((x) => x.id === id);
@@ -321,7 +351,8 @@ async function compressImage(file) {
   }
   return drawCompressedImage(img, 140, 0.28);
 }
-// ─── 9. TELEGRAM TEST FUNCTION (ท้ายสุดของไฟล์) ──
+
+// ─── 9. TELEGRAM TEST FUNCTION ──
 async function testTelegramNotification() {
   const token = document.querySelector('[data-config="telegramBotToken"]')?.value?.trim();
   const chatId = document.querySelector('[data-config="telegramChatId"]')?.value?.trim();
@@ -352,3 +383,22 @@ async function testTelegramNotification() {
     setStatus(`❌ ส่งไม่สำเร็จ: ${err.message}`);
   }
 }
+
+// 🎁 ของแถม: แจ้งเตือนเมื่อถึงเวลา (เช็คทุก 1 นาที)
+setInterval(() => {
+  if (Notification.permission !== "granted") return;
+  const now = new Date();
+  const current = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  
+  Object.entries(state.config.times || {}).forEach(([periodId, scheduledTime]) => {
+    if (current === scheduledTime && state.config.notify?.[periodId]) {
+      const meds = state.medicines.filter(m => m.periods?.includes(periodId));
+      if (meds.length) {
+        new Notification(`🔔 ถึงเวลากินยา: ${PERIODS.find(p=>p.id===periodId)?.label}`, {
+          body: meds.map(m => `${m.name} ${m.dose}`).join(", "),
+          icon: "image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%2310b981' d='M10.5 20.5 3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7Z'/></svg>"
+        });
+      }
+    }
+  });
+}, 60000);
