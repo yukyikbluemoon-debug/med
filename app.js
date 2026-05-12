@@ -9,7 +9,7 @@ const MEAL_OPTIONS = ["ก่อนอาหาร", "หลังอาหา�
 const API_URL_KEY = "medicine_app_api_url";
 const LOCAL_DATA_KEY = "medicine_app_local_data";
 const LOCAL_CONFIG_KEY = "medicine_app_local_config";
-const APP_VERSION = "2026.05.12.3";
+const APP_VERSION = "2026.05.12.4";
 const MAX_IMAGE_BYTES = 9500;
 
 const defaultConfig = {
@@ -344,17 +344,17 @@ root.addEventListener("submit", (event) => {
   }
 });
 
-async function loadRemote(url = state.config.apiUrl.trim()) {
+async function loadRemote(url = state.config.apiUrl.trim(), successMessage = "ซิงก์ข้อมูลแล้ว") {
   if (!url) return;
   setStatus("กำลังโหลดข้อมูลออนไลน์...");
   try {
     const payload = await apiRequest(url, { action: "list" });
-    state.medicines = Array.isArray(payload.medicines) ? payload.medicines : [];
+    state.medicines = normalizeMedicines(Array.isArray(payload.medicines) ? payload.medicines : []);
     state.config = persistConfig(mergeConfig(state.config, { ...(payload.config || {}), apiUrl: url }));
     persistMedicines(state.medicines);
-    setStatus("ซิงก์ข้อมูลแล้ว");
+    setStatus(successMessage);
   } catch (error) {
-    setStatus("โหลดออนไลน์ไม่ได้ ใช้ข้อมูลในเครื่องก่อน");
+    setStatus(`โหลดออนไลน์ไม่ได้ ใช้ข้อมูลในเครื่องก่อน: ${error.message}`);
   }
 }
 
@@ -377,31 +377,30 @@ async function saveMedicineFromForm(form) {
     return;
   }
 
-  const exists = state.medicines.some((item) => item.id === medicine.id);
-  state.medicines = exists
-    ? state.medicines.map((item) => (item.id === medicine.id ? medicine : item))
-    : [medicine, ...state.medicines];
+  state.medicines = upsertMedicine(state.medicines, medicine);
+  state.activeTab = "today";
   persistMedicines(state.medicines);
   state.isFormOpen = false;
   state.editingMedicine = null;
   render();
 
   if (state.config.apiUrl) {
-    setStatus("กำลังบันทึกออนไลน์...");
+    setStatus(`กำลังบันทึก "${medicine.name}" ออนไลน์...`);
     try {
       if (medicine.imageUrl?.startsWith("data:image") && dataUrlBytes(medicine.imageUrl) > MAX_IMAGE_BYTES) {
         throw new Error(`รูปยังใหญ่เกินไป (${formatBytes(dataUrlBytes(medicine.imageUrl))})`);
       }
       const payload = await apiRequest(state.config.apiUrl, { action: "saveMedicine", medicine });
       const saved = payload.medicine || medicine;
-      state.medicines = state.medicines.map((item) => (item.id === saved.id ? saved : item));
+      state.medicines = upsertMedicine(state.medicines, normalizeMedicine(saved));
       persistMedicines(state.medicines);
-      setStatus("บันทึกแล้ว");
+      setStatus(`บันทึก "${saved.name || medicine.name}" แล้ว`);
+      await loadRemote(state.config.apiUrl, `ซิงก์แล้ว พบยา ${state.medicines.length} รายการ`);
     } catch (error) {
-      setStatus("บันทึกไว้ในเครื่องแล้ว แต่ยังซิงก์ออนไลน์ไม่ได้");
+      setStatus(`บันทึกไว้ในเครื่องแล้ว แต่ยังซิงก์ออนไลน์ไม่ได้: ${error.message}`);
     }
   } else {
-    setStatus("บันทึกในเครื่องแล้ว");
+    setStatus(`บันทึก "${medicine.name}" ในเครื่องแล้ว`);
   }
 }
 
@@ -604,6 +603,38 @@ function persistMedicines(medicines) {
 function persistConfig(config) {
   localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(config));
   return config;
+}
+
+function normalizeMedicines(medicines) {
+  return medicines.map(normalizeMedicine).filter((medicine) => medicine.id && medicine.name);
+}
+
+function normalizeMedicine(medicine) {
+  const periods = Array.isArray(medicine.periods)
+    ? medicine.periods
+    : typeof medicine.periods === "string"
+      ? medicine.periods.split(",").map((period) => period.trim()).filter(Boolean)
+      : ["morning"];
+
+  return {
+    ...medicine,
+    id: medicine.id || crypto.randomUUID(),
+    name: medicine.name || "",
+    dose: medicine.dose || "",
+    periods: periods.length ? periods : ["morning"],
+    meal: medicine.meal || "ไม่ระบุ",
+    note: medicine.note || "",
+    imageUrl: medicine.imageUrl || "",
+    imageFileId: medicine.imageFileId || "",
+  };
+}
+
+function upsertMedicine(medicines, medicine) {
+  const normalized = normalizeMedicine(medicine);
+  const exists = medicines.some((item) => item.id === normalized.id);
+  return exists
+    ? medicines.map((item) => (item.id === normalized.id ? normalized : item))
+    : [normalized, ...medicines];
 }
 
 function mergeConfig(current, next) {
