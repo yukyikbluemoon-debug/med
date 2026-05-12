@@ -10,7 +10,7 @@ const API_URL_KEY = "medicine_app_api_url";
 const LOCAL_DATA_KEY = "medicine_app_local_data";
 const LOCAL_CONFIG_KEY = "medicine_app_local_config";
 const DEFAULT_API_URL = "https://script.google.com/macros/s/AKfycbzX4eD8anUFjbJx9lWVcLdr0hroDxTHEZhViCMeUem3Ag8tjzpKHyGybHapfYysQiq0/exec";
-const APP_VERSION = "2026.05.12.5";
+const APP_VERSION = "2026.05.12.6";
 const MAX_IMAGE_BYTES = 9500;
 
 const defaultConfig = {
@@ -257,7 +257,7 @@ function renderMedicineForm() {
 
         <div class="sheet-actions">
           <button type="button" class="ghost-button" data-action="close-form">ยกเลิก</button>
-          <button type="submit" class="primary-button">บันทึก</button>
+          <button type="button" class="primary-button" data-action="save-medicine">บันทึก</button>
         </div>
       </form>
     </div>
@@ -319,6 +319,13 @@ root.addEventListener("click", async (event) => {
   if (action === "save-config") {
     saveConfigFromInputs();
   }
+
+  if (action === "save-medicine") {
+    const form = button.closest("form");
+    if (form) {
+      saveMedicineFromForm(form);
+    }
+  }
 });
 
 root.addEventListener("change", (event) => {
@@ -343,7 +350,7 @@ root.addEventListener("submit", (event) => {
     event.preventDefault();
     saveMedicineFromForm(event.target);
   }
-});
+}, true);
 
 async function loadRemote(url = state.config.apiUrl.trim(), successMessage = "ซิงก์ข้อมูลแล้ว") {
   if (!url) return;
