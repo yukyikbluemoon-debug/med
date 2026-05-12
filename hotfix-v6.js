@@ -1,44 +1,26 @@
+// ✅ hotfix-v6.js - เวอร์ชันแก้ค้าง
 (function () {
   const HOTFIX_VERSION = "2026.05.12.6";
+  let versionMarked = false;
 
   function markVersion() {
+    if (versionMarked) return; // ✅ กันเรียกซ้ำ
     document.querySelectorAll(".app-version").forEach((node) => {
-      node.textContent = `เวอร์ชัน ${HOTFIX_VERSION}`;
-    });
-  }
-
-  function saveMedicine(form) {
-    if (!form || typeof window.saveMedicineFromForm !== "function") return;
-    window.saveMedicineFromForm(form);
-  }
-
-  document.addEventListener(
-    "submit",
-    (event) => {
-      if (event.target && event.target.id === "medicine-form") {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        saveMedicine(event.target);
+      if (!node.textContent.includes(HOTFIX_VERSION)) {
+        node.textContent = `เวอร์ชัน ${HOTFIX_VERSION}`;
       }
-    },
-    true,
-  );
-
-  document.addEventListener(
-    "click",
-    (event) => {
-      const button = event.target.closest("#medicine-form .primary-button");
-      if (!button || button.textContent.trim() !== "บันทึก") return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      saveMedicine(button.closest("form"));
-    },
-    true,
-  );
-
-  const root = document.getElementById("root");
-  if (root) {
-    new MutationObserver(markVersion).observe(root, { childList: true, subtree: true });
+    });
+    versionMarked = true;
   }
-  markVersion();
+
+  // ✅ เรียกครั้งเดียวหลังโหลดหน้า แทนที่จะใช้ MutationObserver
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", markVersion, { once: true });
+  } else {
+    markVersion();
+  }
+
+  // ✅ ลบ event listener ที่ขัดแย้งออกทั้งหมด
+  // (ให้ app.js จัดการฟอร์มเองอย่างเดียว)
+
 })();
