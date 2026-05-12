@@ -132,7 +132,18 @@ function renderMedicineRow(periodId, medicine) {
 }
 
 function renderConfig() {
-  return `<section class="config-panel"><h2>ตั้งค่า</h2><label class="field"><span>Google Apps Script URL</span><input value="${escapeAttribute(state.config.apiUrl || "")}" data-config="apiUrl" placeholder="วาง URL ของ Web App" /></label><label class="field"><span>Telegram Bot Token</span><input value="${escapeAttribute(state.config.telegramBotToken || "")}" data-config="telegramBotToken" placeholder="ได้จาก BotFather" /></label><label class="field"><span>Telegram Chat ID</span><input value="${escapeAttribute(state.config.telegramChatId || "")}" data-config="telegramChatId" placeholder="เลข chat id ของคุณ" /></label><div class="time-settings">${PERIODS.map((p) => `<div class="time-row"><label><span>${p.label}</span><input type="time" value="${state.config.times?.[p.id] || p.defaultTime}" data-time="${p.id}" /></label><label class="switch"><input type="checkbox" ${state.config.notify?.[p.id] ? "checked" : ""} data-notify="${p.id}" /><span></span></label></div>`).join("")}</div><div class="config-actions"><button type="button" class="secondary-button" data-action="reload">โหลดข้อมูล</button><button type="button" class="primary-button" data-action="save-config">บันทึกตั้งค่า</button></div></section>`;
+  return `<section class="config-panel">
+    <h2>ตั้งค่า</h2>
+    <label class="field"><span>Google Apps Script URL</span><input value="${escapeAttribute(state.config.apiUrl || "")}" data-config="apiUrl" placeholder="วาง URL ของ Web App" /></label>
+    <label class="field"><span>Telegram Bot Token</span><input value="${escapeAttribute(state.config.telegramBotToken || "")}" data-config="telegramBotToken" placeholder="ได้จาก BotFather" /></label>
+    <label class="field"><span>Telegram Chat ID</span><input value="${escapeAttribute(state.config.telegramChatId || "")}" data-config="telegramChatId" placeholder="เลข chat id ของคุณ" /></label>
+    <div class="time-settings">${PERIODS.map((p) => `<div class="time-row"><label><span>${p.label}</span><input type="time" value="${state.config.times?.[p.id] || p.defaultTime}" data-time="${p.id}" /></label><label class="switch"><input type="checkbox" ${state.config.notify?.[p.id] ? "checked" : ""} data-notify="${p.id}" /><span></span></label></div>`).join("")}</div>
+    <div class="config-actions">
+      <button type="button" class="secondary-button" data-action="reload">โหลดข้อมูล</button>
+      <button type="button" class="secondary-button" data-action="test-telegram">📱 เทส Telegram</button>
+      <button type="button" class="primary-button" data-action="save-config">บันทึกตั้งค่า</button>
+    </div>
+  </section>`;
 }
 
 function renderMedicineForm() {
@@ -181,6 +192,7 @@ root?.addEventListener("click", async (e) => {
   if (action === "gallery") document.getElementById("gallery-input")?.click();
   if (action === "reload") loadRemote();
   if (action === "save-config") saveConfigFromInputs();
+  if (action === "test-telegram") testTelegramNotification();
   if (action === "save-medicine") { const f = btn.closest("form"); if (f) saveMedicineFromForm(f); }
 });
 
