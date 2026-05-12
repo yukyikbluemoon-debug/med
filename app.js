@@ -157,10 +157,11 @@ function renderConfig() {
     <label class="field"><span>Telegram Chat ID</span><input value="${escapeAttribute(state.config.telegramChatId || "")}" data-config="telegramChatId" placeholder="เลข chat id ของคุณ" /></label>
     <div class="time-settings">${PERIODS.map((p) => `<div class="time-row"><label><span>${p.label}</span><input type="time" value="${state.config.times?.[p.id] || p.defaultTime}" data-time="${p.id}" /></label><label class="switch"><input type="checkbox" ${state.config.notify?.[p.id] ? "checked" : ""} data-notify="${p.id}" /><span></span></label></div>`).join("")}</div>
     <div class="config-actions">
-      <button type="button" class="secondary-button" data-action="reload">โหลดข้อมูล</button>
-      <button type="button" class="secondary-button" data-action="test-telegram">📱 เทส Telegram</button>
-      <button type="button" class="primary-button" data-action="save-config">บันทึกตั้งค่า</button>
-    </div>
+  <button type="button" class="secondary-button" data-action="reload">โหลดข้อมูล</button>
+  <button type="button" class="secondary-button" data-action="test-telegram">📱 เทส Telegram</button>
+  <button type="button" class="secondary-button" data-action="save-config">บันทึกตั้งค่า</button>
+  <button type="button" class="primary-button" data-action="export-html">📤 ส่งออกรายงาน</button> <!-- ✅ เพิ่มบรรทัดนี้ -->
+</div>
   </section>`;
 }
 function renderMedicineForm() {
@@ -216,7 +217,8 @@ root?.addEventListener("click", async (e) => {
     if (typeof testTelegramNotification === "function") testTelegramNotification();
     else alert("❌ ฟังก์ชันเทสยังไม่โหลดสำเร็จ กรุณารีเฟรช (Ctrl+Shift+R)");
   }
-  if (action === "save-medicine") { const f = btn.closest("form"); if (f) saveMedicineFromForm(f); }
+  if (action === "save-medicine") {const f = btn.closest("form"); if (f) saveMedicineFromForm(f); }
+  if (action === "export-html") { exportToHTML(); } // ✅ เพิ่มบรรทัดนี้
 });
 
 root?.addEventListener("change", (e) => {
@@ -404,6 +406,271 @@ async function testTelegramNotification() {
   } catch (err) {
     setStatus(`❌ ส่งไม่สำเร็จ: ${err.message}`);
   }
+}
+
+// ─── 10. EXPORT TO HTML ─────────────────────
+async function exportToHTML() {
+  setStatus("🔄 กำลังสร้างรายงาน...");
+  
+  try {
+    const html = generateReportHTML(state.medicines, state.config);
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement("a");
+    a.href = url;
+    const date = new Date().toISOString().slice(0,10).replace(/-/g, "");
+    a.download = `ตารางยา_รายงาน_${date}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    setStatus("✅ ส่งออกรายงานแล้ว!");
+  } catch (err) {
+    console.error("❌ Export failed:", err);
+    setStatus(`❌ ส่งออกรายงานไม่สำเร็จ: ${err.message}`);
+  }
+}
+
+function generateReportHTML(medicines, config) {
+  const now = new Date();
+  const periodLabels = { morning: "🌅 เช้า", noon: "☀️ กลางวัน", evening: "🌇 เย็น", bedtime: "🌙 ก่อนนอน" };
+  
+  // ✅ สร้างรายการยาแบบแนวนอน + มี Checkbox
+  const medicineCheckboxes = medicines.map(m => `
+    <label class="medicine-checkbox">
+      <input type="checkbox" value="${m.id}" checked onchange="toggleMedicine(this)">
+      <span>${escapeHtml(m.name)} (${(m.periods||[]).map(p=>periodLabels[p]||p).join(", ")})</span>
+    </label>
+  `).join("");
+  
+  // ✅ สร้างการ์ดรายาแบบแนวนอน (รูปโหลดไม่สำเร็จ → แสดงไอคอน)
+  const medicineCardsByPeriod = PERIODS.map(period => {
+    const items = medicines.filter(m => m.periods?.includes(period.id));
+    if (!items.length) return "";
+    
+    const cards = items.map(m => `
+      <div class="medicine-card horizontal" data-medicine-id="${m.id}">
+        <img class="med-img" 
+             src="${escapeAttribute(m.imageUrl || "")}" 
+             alt="${escapeAttribute(m.name)}"
+             onerror="this.onerror=null; this.parentElement.querySelector('.med-img-placeholder').style.display='flex'; this.style.display='none';">
+        <div class="med-img-placeholder" style="display: ${m.imageUrl ? 'none' : 'flex'}">💊</div>
+        <div class="med-info">
+          <div class="med-name">${escapeHtml(m.name)}</div>
+          <div class="med-dose">${escapeHtml(m.dose)}</div>
+          <div class="med-meal">🍽️ ${escapeHtml(m.meal || "ไม่ระบุ")}</div>
+          ${m.note ? `<div class="med-note">${escapeHtml(m.note)}</div>` : ""}
+        </div>
+      </div>
+    `).join("");
+    
+    return `
+      <div class="period-group">
+        <div class="period-header">
+          <span class="period-label">${period.label}</span>
+          <span class="period-time">${config.times?.[period.id] || period.defaultTime}</span>
+        </div>
+        <div class="medicines-horizontal">
+          ${cards}
+        </div>
+      </div>
+    `;
+  }).filter(Boolean).join("");
+  
+  // ✅ สร้างตารางแบบย่อ
+  const compactRows = medicines.map(m => {
+    const times = (m.periods||[]).map(p => config.times?.[p] || PERIODS.find(x=>x.id===p)?.defaultTime).filter(Boolean).join(", ");
+    return `
+      <tr data-medicine-id="${m.id}">
+        <td class="med-name-cell">${escapeHtml(m.name)}</td>
+        <td>${escapeHtml(m.dose)}</td>
+        <td><span class="time-badge">${escapeHtml(times)}</span></td>
+        <td>${escapeHtml(m.meal || "-")}</td>
+      </tr>
+    `;
+  }).join("");
+  
+  // ✅ HTML เต็ม (ฝัง CSS + JS ในไฟล์เดียว)
+  return `<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ตารางยา - รายงาน</title>
+  <style>
+    :root { --bg: #f8f9fa; --card: #ffffff; --primary: #2563eb; --text: #1f2937; --muted: #6b7280; --border: #e5e7eb; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; padding: 16px; }
+    .container { max-width: 900px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 20px; }
+    h1 { font-size: 1.6rem; margin-bottom: 4px; }
+    .subtitle { color: var(--muted); font-size: 0.85rem; }
+    
+    /* ✅ Controls */
+    .controls { background: var(--card); border-radius: 12px; padding: 14px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .control-row { display: flex; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+    .control-label { font-weight: 600; font-size: 0.9rem; }
+    .btn-toggle { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.85rem; }
+    .btn-toggle.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .btn-select-all { font-size: 0.8rem; color: var(--primary); cursor: pointer; text-decoration: underline; }
+    .medicine-selector { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin-top: 8px; }
+    .medicine-checkbox { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #f1f5f9; border-radius: 6px; font-size: 0.85rem; cursor: pointer; }
+    .medicine-checkbox input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+    .medicine-checkbox.checked { background: #dbeafe; border: 1px solid var(--primary); }
+    
+    /* ✅ Full View - Horizontal Cards */
+    .section { background: var(--card); border-radius: 12px; padding: 14px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .section-title { font-size: 1rem; font-weight: 600; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+    .config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+    .config-item { background: #f1f5f9; padding: 8px 10px; border-radius: 8px; font-size: 0.85rem; }
+    .config-item strong { display: block; color: var(--primary); margin-bottom: 2px; }
+    .period-group { margin-bottom: 14px; }
+    .period-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .period-label { font-weight: 600; color: var(--primary); }
+    .period-time { font-size: 0.8rem; color: var(--muted); }
+    
+    /* ✅ Horizontal Cards */
+    .medicines-horizontal { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+    .medicine-card.horizontal { flex: 0 1 calc(33.333% - 8px); min-width: 200px; display: flex; flex-direction: column; gap: 8px; padding: 10px; background: #fafafa; border-radius: 8px; border: 1px solid var(--border); text-align: center; }
+    .medicine-card.horizontal .med-img, .medicine-card.horizontal .med-img-placeholder { width: 100%; height: 120px; object-fit: cover; border-radius: 6px; background: #e2e8f0; }
+    .medicine-card.horizontal .med-img-placeholder { display: flex; align-items: center; justify-content: center; font-size: 3rem; color: var(--muted); }
+    .medicine-card.horizontal .med-info { text-align: left; }
+    .medicine-card.horizontal .med-name { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
+    .medicine-card.horizontal .med-dose { color: var(--primary); font-size: 0.85rem; margin-bottom: 2px; }
+    .medicine-card.horizontal .med-meal { color: var(--muted); font-size: 0.75rem; margin-bottom: 4px; }
+    .medicine-card.horizontal .med-note { font-size: 0.75rem; color: #4b5563; font-style: italic; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
+    
+    /* ✅ Compact View */
+    .compact-view .full-section { display: none; }
+    .compact-section { display: none; }
+    .compact-view .compact-section { display: block; }
+    .compact-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .compact-table th { text-align: left; padding: 8px; background: #f1f5f9; border-bottom: 2px solid var(--border); }
+    .compact-table td { padding: 8px; border-bottom: 1px solid var(--border); }
+    .compact-table tr:last-child td { border-bottom: none; }
+    .compact-table .med-name-cell { font-weight: 600; }
+    .compact-table .time-badge { background: #dbeafe; color: var(--primary); padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+    
+    footer { text-align: center; margin-top: 20px; color: var(--muted); font-size: 0.75rem; }
+    .btn-print { display: inline-block; margin-top: 12px; padding: 8px 16px; background: var(--primary); color: #fff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; }
+    
+    @media print {
+      body { background: #fff; padding: 0; }
+      .no-print { display: none !important; }
+      .section { box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; }
+      .compact-section { page-break-inside: avoid; }
+      .medicine-card.horizontal { break-inside: avoid; }
+    }
+    @media (max-width: 600px) {
+      .medicine-card.horizontal { flex: 0 1 calc(50% - 8px); }
+    }
+    @media (max-width: 400px) {
+      .medicine-card.horizontal { flex: 0 1 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📋 ตารางยาของฉัน</h1>
+      <p class="subtitle">อัปเดตล่าสุด: ${now.toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })}, ${now.toLocaleTimeString("th-TH")}</p>
+    </header>
+
+    <!-- ✅ Controls -->
+    <div class="controls no-print">
+      <div class="control-row">
+        <span class="control-label">👁️ มุมมอง:</span>
+        <button class="btn-toggle active" onclick="toggleView('full')">📖 แบบเต็ม</button>
+        <button class="btn-toggle" onclick="toggleView('compact')">📋 แบบย่อ</button>
+      </div>
+      <div class="control-row">
+        <span class="control-label">✅ เลือกยาที่จะแสดง:</span>
+        <span class="btn-select-all" onclick="toggleSelectAll(true)">เลือกทั้งหมด</span>
+        <span class="btn-select-all" onclick="toggleSelectAll(false)">ไม่เลือกเลย</span>
+      </div>
+      <div class="medicine-selector" id="medicineSelector">
+        ${medicineCheckboxes}
+      </div>
+    </div>
+
+    <!-- ✅ Full View -->
+    <div id="fullView" class="full-section">
+      <div class="section">
+        <div class="section-title">⏰ เวลาแจ้งเตือน</div>
+        <div class="config-grid">
+          ${PERIODS.map(p => `<div class="config-item"><strong>${p.label}</strong>${config.times?.[p.id] || p.defaultTime}</div>`).join("")}
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title">💊 รายการยาแบ่งตามช่วงเวลา</div>
+        ${medicineCardsByPeriod || `<p style="color:var(--muted); text-align:center;">ยังไม่มีรายการยา</p>`}
+      </div>
+    </div>
+
+    <!-- ✅ Compact View -->
+    <div id="compactView" class="compact-section">
+      <div class="section">
+        <div class="section-title">📋 สรุปยาทั้งหมด</div>
+        <table class="compact-table">
+          <thead><tr><th>ชื่อยา</th><th>ขนาด</th><th>เวลา</th><th>อาหาร</th></tr></thead>
+          <tbody>${compactRows || `<tr><td colspan="4" style="text-align:center; color:var(--muted);">ยังไม่มีรายการยา</td></tr>`}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <footer>
+      <p>📱 สร้างจากแอปตารางยา | เวอร์ชัน ${APP_VERSION}</p>
+      <a href="#" class="btn-print no-print" onclick="window.print(); return false;">🖨️ พิมพ์ / บันทึกเป็น PDF</a>
+    </footer>
+  </div>
+
+  <script>
+    function toggleView(mode) {
+      const body = document.body;
+      const buttons = document.querySelectorAll('.btn-toggle');
+      buttons.forEach(btn => btn.classList.remove('active'));
+      if (mode === 'compact') {
+        body.classList.add('compact-view');
+        buttons[1].classList.add('active');
+      } else {
+        body.classList.remove('compact-view');
+        buttons[0].classList.add('active');
+      }
+    }
+    function toggleSelectAll(select) {
+      document.querySelectorAll('.medicine-checkbox input[type="checkbox"]').forEach(cb => {
+        cb.checked = select;
+        cb.closest('.medicine-checkbox').classList.toggle('checked', select);
+      });
+      filterMedicines();
+    }
+    function toggleMedicine(checkbox) {
+      checkbox.closest('.medicine-checkbox').classList.toggle('checked', checkbox.checked);
+      filterMedicines();
+    }
+    function filterMedicines() {
+      const selectedIds = Array.from(document.querySelectorAll('.medicine-checkbox input:checked')).map(cb => cb.value);
+      document.querySelectorAll('[data-medicine-id]').forEach(el => {
+        const id = el.getAttribute('data-medicine-id');
+        el.style.display = selectedIds.includes(id) ? '' : 'none';
+      });
+    }
+    document.addEventListener('DOMContentLoaded', () => { toggleSelectAll(true); });
+  </script>
+</body>
+</html>`;
+}
+
+// ✅ ฟังก์ชันช่วย: หนีอักขระพิเศษใน HTML (กัน XSS)
+function escapeHtml(text) {
+  if (!text) return "";
+  const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };
+  return String(text).replace(/[&<>"']/g, m => map[m]);
+}
+function escapeAttribute(text) {
+  return escapeHtml(text).replace(/\`/g, "&#096;");
 }
 
 // 🎁 ของแถม: แจ้งเตือนเมื่อถึงเวลา (เช็คทุก 1 นาที)
