@@ -9,11 +9,12 @@ const MEAL_OPTIONS = ["ก่อนอาหาร", "หลังอาหา�
 const API_URL_KEY = "medicine_app_api_url";
 const LOCAL_DATA_KEY = "medicine_app_local_data";
 const LOCAL_CONFIG_KEY = "medicine_app_local_config";
-const APP_VERSION = "2026.05.12.4";
+const DEFAULT_API_URL = "https://script.google.com/macros/s/AKfycbzX4eD8anUFjbJx9lWVcLdr0hroDxTHEZhViCMeUem3Ag8tjzpKHyGybHapfYysQiq0/exec";
+const APP_VERSION = "2026.05.12.5";
 const MAX_IMAGE_BYTES = 9500;
 
 const defaultConfig = {
-  apiUrl: "",
+  apiUrl: DEFAULT_API_URL,
   telegramBotToken: "",
   telegramChatId: "",
   notify: { morning: true, noon: true, evening: true, bedtime: true },
@@ -57,7 +58,7 @@ init();
 function init() {
   const savedConfig = readJson(LOCAL_CONFIG_KEY, defaultConfig);
   const savedApiUrl = localStorage.getItem(API_URL_KEY) || "";
-  state.config = mergeConfig(defaultConfig, { ...savedConfig, apiUrl: savedConfig.apiUrl || savedApiUrl });
+  state.config = mergeConfig(defaultConfig, { ...savedConfig, apiUrl: savedConfig.apiUrl || savedApiUrl || DEFAULT_API_URL });
   state.medicines = readJson(LOCAL_DATA_KEY, seedMedicines);
   render();
 
