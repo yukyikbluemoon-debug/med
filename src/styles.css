@@ -55,10 +55,17 @@ button {
 }
 
 .eyeline,
-.sync-status {
+.sync-status,
+.app-version {
   margin: 0;
   color: #517067;
   font-size: 16px;
+}
+
+.app-version {
+  margin: -8px 2px 16px;
+  color: #78918a;
+  font-size: 14px;
 }
 
 h1,
