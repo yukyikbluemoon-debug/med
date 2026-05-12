@@ -317,16 +317,38 @@ async function deleteMedicine(id) {
 }
 
 async function saveConfigFromInputs() {
-  const next = { ...state.config, apiUrl: document.querySelector("[data-config='apiUrl']")?.value.trim(), telegramBotToken: document.querySelector("[data-config='telegramBotToken']")?.value.trim(), telegramChatId: document.querySelector("[data-config='telegramChatId']")?.value.trim(), times: { ...state.config.times }, notify: { ...state.config.notify } };
+  const next = { 
+    ...state.config, 
+    apiUrl: document.querySelector("[data-config='apiUrl']")?.value.trim(), 
+    telegramBotToken: document.querySelector("[data-config='telegramBotToken']")?.value.trim(), 
+    telegramChatId: document.querySelector("[data-config='telegramChatId']")?.value.trim(), 
+    times: { ...state.config.times }, 
+    notify: { ...state.config.notify } 
+  };
+  
   document.querySelectorAll("[data-time]").forEach((el) => { next.times[el.dataset.time] = el.value; });
   document.querySelectorAll("[data-notify]").forEach((el) => { next.notify[el.dataset.notify] = el.checked; });
+  
   state.config = persistConfig(next);
   localStorage.setItem(API_URL_KEY, next.apiUrl || "");
+  
   if (next.apiUrl) {
     setStatus("กำลังบันทึกตั้งค่า...");
-    try { await apiRequest(next.apiUrl, { action: "saveConfig", config: publicConfig(next) }); setStatus("บันทึกตั้งค่าแล้ว"); }
-    catch { setStatus("บันทึกตั้งค่าในเครื่องแล้ว แต่ซิงก์ออนไลน์ไม่ได้"); }
-  } else setStatus("บันทึกตั้งค่าในเครื่องแล้ว");
+    try {
+      await apiRequest(next.apiUrl, { action: "saveConfig", config: publicConfig(next) }); 
+      setStatus("บันทึกตั้งค่าแล้ว ✅");
+    } catch (error) {
+      // ✅ Debug log: ดูรายละเอียดข้อผิดพลาดใน Console (F12)
+      console.error('❌ [Config Sync] Error details:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      });
+      setStatus("บันทึกตั้งค่าในเครื่องแล้ว แต่ซิงก์ออนไลน์ไม่ได้");
+    }
+  } else {
+    setStatus("บันทึกตั้งค่าในเครื่องแล้ว ✅");
+  }
 }
 
 async function handleImageFile(file) {
